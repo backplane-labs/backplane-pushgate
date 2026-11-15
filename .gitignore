@@ -7,3 +7,7 @@ go.work.sum
 .idea/
 bin/
 /pushgate
+
+# client package
+client/node_modules/
+client/dist/

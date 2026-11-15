@@ -28,8 +28,12 @@ jobs:
             ~/.cache/go-build
           key: ${{ runner.os }}-go-${{ hashFiles('go.mod', 'go.sum') }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-go-${{ hashFiles('go.mod', 'go.sum') }}-
-      - run: make configure
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: make configure configure-client
       - run: bin/golangci-lint run ./...
-      - run: make gen && git diff --exit-code -- proto
+      - run: make gen && git diff --exit-code -- proto client/src/gen
+      - run: make client
       - run: go vet ./...
       - run: go test -race -count=1 -timeout 15m ./...

@@ -14,7 +14,8 @@ GOLANGCI_LINT_VERSION      := v2.15.0
 EASYP_VERSION              := v0.16.6
 PROTOC_GEN_GO_VERSION      := v1.36.11
 
-EASYP := PATH="$(BIN):$$PATH" "$(BIN)/easyp"
+# easyp finds protoc-gen-es in client/node_modules.
+EASYP := PATH="$(CURDIR)/client/node_modules/.bin:$(BIN):$$PATH" "$(BIN)/easyp"
 
 BUILD_PKG := github.com/backplane-labs/backplane/pkg/backplane/build
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.0.0)
@@ -38,9 +39,10 @@ configure: ## Install the pinned linter and proto generators into ./bin
 	@echo "✓ configure done — tools in $(BIN)"
 
 .PHONY: gen
-gen: ## Generate the client protocol's Go code
+gen: ## Generate the client protocol's Go and TypeScript code
 	"$(BIN)/easyp" lint -p proto
 	$(EASYP) generate
+	$(EASYP) --cfg easyp.client.yaml generate
 
 .PHONY: lint-proto
 lint-proto: ## Lint the proto definitions
@@ -54,8 +56,16 @@ lint: ## Lint Go code
 fmt: ## Format Go code
 	"$(BIN)/golangci-lint" fmt ./...
 
+.PHONY: configure-client
+configure-client: ## Install the TypeScript client's dependencies
+	cd client && npm ci
+
+.PHONY: client
+client: ## Typecheck, test and build the TypeScript client into client/dist
+	cd client && npm run -s typecheck && npm run -s test && npm run -s build
+
 .PHONY: test
-test: ## Unit and integration tests with the race detector (NATS runs in-process)
+test: client ## Unit and integration tests with the race detector (NATS in-process; the TS client against the service)
 	go vet ./...
 	go test -race -timeout 15m ./...
 

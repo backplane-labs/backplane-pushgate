@@ -91,6 +91,49 @@ connection of the same key; 4400 a malformed frame. 1011 means the service
 cannot serve now (retry). The server pings every `session.keepalive`; a
 connection that does not answer is closed.
 
+## Client package: `@backplane-labs/pushgate-client`
+
+The TypeScript client of the protocol above, for Electron's main process and
+Node ≥ 22 (ESM, no DOM types). It is published to GitHub Packages:
+`@backplane-labs:registry=https://npm.pkg.github.com` in `.npmrc`.
+
+```ts
+import { PushgateClient, decrypt, generateContentKeys, importContentKeys } from '@backplane-labs/pushgate-client';
+
+const client = new PushgateClient({
+  url: 'wss://push.example.com/connect',
+  device: { publicKey, sign },              // Ed25519; sign may stay in the OS keystore
+  subscriptions: persistedIds,              // ids the host kept: vanished ones reach onSubscriptionGone
+  onNotification: async (n) => {            // one at a time; resolving acknowledges, throwing leaves it to come again
+    const keys = await importContentKeys(storedKeys[n.subscription]);
+    const plaintext = await decrypt(keys, n.data); // DecryptError {reason}: drop it, still resolve
+  },
+  onStatus: (s) => {},                      // connecting | online | offline {code, retryInMs, final}
+  onSubscriptionGone: (id) => {},           // expired: subscribe again, register the new address
+});
+client.start();
+
+const keys = await generateContentKeys();   // per subscription; keys.export() is plain JSON to persist
+const sub = await client.subscribe(applicationServerKey); // give sub.endpoint, keys.p256dh, keys.auth to the sender
+```
+
+- Reconnection is automatic with exponential backoff and jitter
+  (`backoff: {initialMs, maxMs, jitter}`), except after 4400, 4401 and 4409:
+  then the status is `final` and the client stops. `reconnect()` drops the
+  connection and connects at once. Call it on resume from sleep or a network
+  change, since a half-open connection is not seen otherwise.
+- `subscribe` and `unsubscribe` take `{signal, timeoutMs}`. They wait for the
+  connection and reject with `PushgateRefusedError {code: INVALID | NOT_FOUND
+  | LIMIT | UNAVAILABLE}` or `PushgateTimeoutError`.
+- `webSocket` replaces the transport (a proxy-aware socket). It is a factory
+  of `WebSocketLike` (`send`, `close`, `listen({open, message, close,
+  error})`); `nativeWebSocket` is the default. `clock`, `random` and `log`
+  are injectable too.
+- `@backplane-labs/pushgate-client/testing` has `FakeGateway`, an in-process
+  gateway with the service's semantics (`webSocket`, `push`, `close(code)`,
+  `expire`, `refuse`, `acked`), plus `createDeviceKey` and RFC 8291 `encrypt`,
+  so hosts test without the service.
+
 ## Storage
 
 All in the NATS of the `nats` section, with JetStream:
@@ -136,9 +179,9 @@ Limits per sender or per address belong to the edge proxy.
 ## Develop
 
 ```sh
-make configure   # golangci-lint, easyp, protoc-gen-go into ./bin
-make gen         # proto/pushgate/client/v1 -> Go
-make lint test   # tests run NATS with JetStream in-process: no docker needed
+make configure configure-client  # golangci-lint, easyp, protoc-gen-go into ./bin; the client's npm deps
+make gen         # proto/pushgate/client/v1 -> Go and client/src/gen
+make lint test   # builds the client, then Go tests on NATS with JetStream in-process: no docker needed
 make run         # against the local backplane stack (deployments/dev.yaml)
 ```
 
@@ -151,4 +194,5 @@ make run         # against the local backplane stack (deployments/dev.yaml)
 | `internal/sender` | The RFC 8030 endpoint. |
 | `internal/session` | The client WebSocket. |
 | `internal/pushtest` | A test client: hello, subscribe, receive, ack, RFC 8291 decryption. |
-| `tests` | The service whole on a real NATS: senders through webpush-go (what backplane-courier sends with), two replicas, a NATS node down, NATS gone. |
+| `tests` | The service whole on a real NATS: senders through webpush-go (what backplane-courier sends with), two replicas, a NATS node down, NATS gone, and the TypeScript client (`client/e2e/device.mjs`) against it. |
+| `client` | The TypeScript client package with its own tests (`make client`). |
