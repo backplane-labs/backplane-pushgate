@@ -28,7 +28,9 @@ import (
 type instance struct {
 	h   *backplanetest.Harness
 	url string // public URL, http
-	ws  string // client WebSocket URL
+	// client is the server's own: a server Close elsewhere never breaks it.
+	client *http.Client
+	ws     string // client WebSocket URL
 }
 
 // start runs pushgate on natsURL; vars override its configuration.
@@ -56,7 +58,7 @@ func start(tb testing.TB, natsURL string, vars map[string]string) instance {
 	mux.Handle(session.Path, st.Sessions)
 	h.Start()
 
-	return instance{h: h, url: srv.URL, ws: "ws" + strings.TrimPrefix(srv.URL, "http") + session.Path}
+	return instance{h: h, url: srv.URL, client: srv.Client(), ws: "ws" + strings.TrimPrefix(srv.URL, "http") + session.Path}
 }
 
 // device is a desktop client's keys: its identity and one subscription's
@@ -237,7 +239,7 @@ func TestSenderRefusals(t *testing.T) {
 	req.Header.Set("TTL", "60")
 	req.Header.Set("Content-Encoding", "aes128gcm")
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := in.client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
