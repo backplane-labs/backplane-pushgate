@@ -11,3 +11,6 @@ bin/
 # client package
 client/node_modules/
 client/dist/
+client/.yarn/*
+!client/.yarn/patches
+!client/.yarn/plugins
