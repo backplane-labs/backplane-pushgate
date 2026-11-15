@@ -1,8 +1,13 @@
+// The single source of the TypeScript lint and format config (rules/lang/typescript.md, Lint config).
+// A package copies it as biome.jsonc next to its package.json, with ~/.claude/rules/lang/biome/*.grit
+// as biome/*.grit. Only the places marked ADAPT differ.
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
+    // ADAPT: the package's sources; generated code excluded.
     "includes": ["src/**", "e2e/**", "!src/gen"]
   },
+  // Bans Biome has no rule for: `as` casts (except `as const`) and `unknown`.
   "plugins": ["./biome/no-type-assertion.grit", "./biome/no-unknown.grit"],
   "formatter": {
     "indentStyle": "space",
