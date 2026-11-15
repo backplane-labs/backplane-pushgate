@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+package pushgate.client.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/backplane-labs/backplane-pushgate/proto/pushgate/client/v1;clientv1";
+
+// ClientFrame is one WebSocket text message from a desktop client, in
+// protojson.
+message ClientFrame {
+  oneof frame {
+    // Hello answers the server's challenge; the first frame of a client.
+    Hello hello = 1;
+    // Subscribe makes a subscription bound to a sender key.
+    Subscribe subscribe = 2;
+    // Unsubscribe ends a subscription.
+    Unsubscribe unsubscribe = 3;
+    // Ack confirms received notifications.
+    Ack ack = 4;
+  }
+}
+
+// ServerFrame is one WebSocket text message from pushgate, in protojson.
+message ServerFrame {
+  oneof frame {
+    // Challenge is the first frame of a connection.
+    Challenge challenge = 1;
+    // Welcome accepts the client's hello.
+    Welcome welcome = 2;
+    // Subscribed answers a subscribe.
+    Subscribed subscribed = 3;
+    // Unsubscribed answers an unsubscribe.
+    Unsubscribed unsubscribed = 4;
+    // Notification carries one message.
+    Notification notification = 5;
+    // Refused answers a request that failed.
+    Refused refused = 6;
+  }
+}
+
+// Challenge is what the client signs to prove its key.
+message Challenge {
+  // Nonce is 32 random bytes, new for every connection.
+  bytes nonce = 1;
+}
+
+// Hello proves the client's Ed25519 key.
+message Hello {
+  // PublicKey is the client's Ed25519 public key (32 bytes).
+  bytes public_key = 1;
+  // Signature is the Ed25519 signature of "backplane-pushgate/v1 hello\x00"
+  // followed by the challenge's nonce.
+  bytes signature = 2;
+}
+
+// Welcome opens the session.
+message Welcome {
+  // Channel is the base64url (no padding) SHA-256 of the public key.
+  string channel = 1;
+  // Subscriptions are the channel's current subscriptions.
+  repeated Subscription subscriptions = 2;
+}
+
+// Subscription is one sender key's address of the channel.
+message Subscription {
+  // Id names the subscription in unsubscribe and notifications.
+  string id = 1;
+  // Endpoint is the RFC 8030 push resource the sender posts to.
+  string endpoint = 2;
+  // ApplicationServerKey is the sender's VAPID public key (base64url of the
+  // uncompressed P-256 point) the endpoint accepts.
+  string application_server_key = 3;
+}
+
+// Subscribe asks for a subscription bound to a sender key.
+message Subscribe {
+  // RequestId is echoed in the answer.
+  string request_id = 1;
+  // ApplicationServerKey is the sender's VAPID public key (base64url of the
+  // uncompressed P-256 point).
+  string application_server_key = 2;
+}
+
+// Subscribed is the new subscription.
+message Subscribed {
+  string request_id = 1;
+  Subscription subscription = 2;
+}
+
+// Unsubscribe ends a subscription: its endpoint answers 410 and its
+// undelivered messages are dropped.
+message Unsubscribe {
+  string request_id = 1;
+  // Subscription is the subscription's id.
+  string subscription = 2;
+}
+
+// Unsubscribed confirms an unsubscribe.
+message Unsubscribed {
+  string request_id = 1;
+  string subscription = 2;
+}
+
+// Notification is one message as the sender posted it.
+message Notification {
+  // Id names the message in ack; a repeated id is the same message sent
+  // again.
+  string id = 1;
+  // Subscription is the id of the subscription it was sent to.
+  string subscription = 2;
+  // Data is the body encrypted per RFC 8291 (aes128gcm); empty when the
+  // sender posted none.
+  bytes data = 3;
+  // Topic is the sender's Topic header, if any.
+  string topic = 4;
+  // Urgency is very-low, low, normal or high.
+  string urgency = 5;
+  // SentAt is when pushgate accepted it.
+  google.protobuf.Timestamp sent_at = 6;
+}
+
+// Ack confirms notifications: they are not sent again.
+message Ack {
+  repeated string ids = 1;
+}
+
+// Refused answers a request that failed.
+message Refused {
+  string request_id = 1;
+  RefusalCode code = 2;
+  string message = 3;
+}
+
+// RefusalCode is why a request failed.
+enum RefusalCode {
+  REFUSAL_CODE_UNSPECIFIED = 0;
+  // REFUSAL_CODE_INVALID: a malformed key or field.
+  REFUSAL_CODE_INVALID = 1;
+  // REFUSAL_CODE_NOT_FOUND: no such subscription of the channel.
+  REFUSAL_CODE_NOT_FOUND = 2;
+  // REFUSAL_CODE_LIMIT: subscriptions.max_per_channel reached.
+  REFUSAL_CODE_LIMIT = 3;
+}

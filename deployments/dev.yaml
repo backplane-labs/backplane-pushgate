@@ -1,0 +1,5 @@
+# Development configuration (make run): the local backplane stack's NATS
+# (JetStream on), endpoints on the public port.
+public_url: http://127.0.0.1:8089
+nats:
+  url: nats://localhost:4222

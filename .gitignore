@@ -1,0 +1,9 @@
+*.test
+*.out
+coverage.*
+go.work
+go.work.sum
+.env
+.idea/
+bin/
+/pushgate
