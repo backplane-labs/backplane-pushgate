@@ -57,12 +57,12 @@ fmt: ## Format Go code
 	"$(BIN)/golangci-lint" fmt ./...
 
 .PHONY: configure-client
-configure-client: ## Install the TypeScript client's dependencies
-	cd client && npm ci
+configure-client: ## Install the TypeScript client's dependencies (Yarn 4 through corepack)
+	cd client && yarn install --immutable
 
 .PHONY: client
 client: ## Lint (Biome), typecheck, test and build the TypeScript client into client/dist
-	cd client && npm run -s lint && npm run -s typecheck && npm run -s test && npm run -s build
+	cd client && yarn lint && yarn typecheck && yarn test && yarn build
 
 .PHONY: test
 test: client ## Unit and integration tests with the race detector (NATS in-process; the TS client against the service)

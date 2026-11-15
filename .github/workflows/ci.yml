@@ -31,6 +31,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+      - run: corepack enable
       - run: make configure configure-client
       - run: bin/golangci-lint run ./...
       - run: make gen && git diff --exit-code -- proto client/src/gen

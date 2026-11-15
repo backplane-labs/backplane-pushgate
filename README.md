@@ -179,7 +179,7 @@ Limits per sender or per address belong to the edge proxy.
 ## Develop
 
 ```sh
-make configure configure-client  # golangci-lint, easyp, protoc-gen-go into ./bin; the client's npm deps
+make configure configure-client  # golangci-lint, easyp, protoc-gen-go into ./bin; the client's deps (Yarn 4 via `corepack enable`)
 make gen         # proto/pushgate/client/v1 -> Go and client/src/gen
 make lint test   # builds the client, then Go tests on NATS with JetStream in-process: no docker needed
 make run         # against the local backplane stack (deployments/dev.yaml)
@@ -195,4 +195,4 @@ make run         # against the local backplane stack (deployments/dev.yaml)
 | `internal/session` | The client WebSocket. |
 | `internal/pushtest` | A test client: hello, subscribe, receive, ack, RFC 8291 decryption. |
 | `tests` | The service whole on a real NATS: senders through webpush-go (what backplane-courier sends with), two replicas, a NATS node down, NATS gone, and the TypeScript client (`client/e2e/device.mjs`) against it. |
-| `client` | The TypeScript client package with its own tests (`make client`). Biome lints and formats it (`npm run lint`, `npm run fmt`): its recommended rules, the project's bans (any, non-null, default and `export *`, enums, namespaces, `==`, floating promises, console), and two GritQL plugins in `client/biome/` that reject `as` casts (except `as const`) and `unknown`. |
+| `client` | The TypeScript client package with its own tests (`make client`). Biome lints and formats it (`yarn lint`, `yarn fmt`): its recommended rules, the project's bans (any, non-null, default and `export *`, enums, namespaces, `==`, floating promises, console), and two GritQL plugins in `client/biome/` that reject `as` casts (except `as const`) and `unknown`. |

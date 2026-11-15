@@ -101,11 +101,12 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ github.ref_name }}
         run: |
-          npm ci
-          npm run -s lint
-          npm run -s typecheck
-          npm run -s test
-          npm run -s build
+          corepack enable
+          yarn install --immutable
+          yarn lint
+          yarn typecheck
+          yarn test
+          yarn build
           npm version "${VERSION#v}" --no-git-tag-version
           npm publish
 
