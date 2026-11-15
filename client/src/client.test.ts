@@ -1,10 +1,10 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { PushgateClient, type Clock, type Notification, type PushgateClientOptions, type Status } from './client.js';
+import { type Clock, type Notification, PushgateClient, type PushgateClientOptions, type Status } from './client.js';
 import { decrypt, encrypt, generateContentKeys } from './crypto.js';
 import { PushgateRefusedError, PushgateTimeoutError } from './errors.js';
 import type { WebSocketLike } from './socket.js';
-import { FakeGateway, createDeviceKey } from './testing.js';
+import { createDeviceKey, FakeGateway } from './testing.js';
 
 const senderKey = 'BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8';
 const text = new TextEncoder();
@@ -44,18 +44,20 @@ interface Harness {
   readonly advance: (ms: number) => void;
 }
 
-async function harness(
-  overrides: Partial<PushgateClientOptions> = {}, gateway = new FakeGateway(),
-): Promise<Harness> {
+async function harness(overrides: Partial<PushgateClientOptions> = {}, gateway = new FakeGateway()): Promise<Harness> {
   const { clock, advance } = manualClock();
   const statuses: Status[] = [];
   const received: Notification[] = [];
   const gone: string[] = [];
   const client = new PushgateClient({
-    url: 'wss://pushgate.test/connect', device: await createDeviceKey(), webSocket: gateway.webSocket, clock,
+    url: 'wss://pushgate.test/connect',
+    device: await createDeviceKey(),
+    webSocket: gateway.webSocket,
+    clock,
     random: () => 0,
-    onNotification: async (n) => {
+    onNotification: (n) => {
       received.push(n);
+      return Promise.resolve();
     },
     onStatus: (s) => statuses.push(s),
     onSubscriptionGone: (id) => gone.push(id),
@@ -80,7 +82,10 @@ describe('PushgateClient', () => {
     expect(h.client.subscriptions).toEqual([sub]);
 
     const keys = await generateContentKeys();
-    const id = h.gateway.push(sub.id, await encrypt(keys.p256dh, keys.auth, text.encode('ring')), { topic: 'call', urgency: 'high' });
+    const id = h.gateway.push(sub.id, await encrypt(keys.p256dh, keys.auth, text.encode('ring')), {
+      topic: 'call',
+      urgency: 'high',
+    });
 
     await vi.waitFor(() => expect(h.gateway.acked).toEqual([id]));
 
@@ -95,13 +100,17 @@ describe('PushgateClient', () => {
   test('a handler that throws leaves the message to come again; a repeat of a handled one is acknowledged unseen', async () => {
     let calls = 0;
     const gateway = new FakeGateway();
-    const h = await harness({
-      onNotification: async () => {
-        calls++;
-        if (calls === 1) throw new Error('not now');
-        if (calls === 2) gateway.close(1006); // handled, but the ack is lost with the connection
+    const h = await harness(
+      {
+        onNotification: () => {
+          calls++;
+          if (calls === 1) return Promise.reject(new Error('not now'));
+          if (calls === 2) gateway.close(1006); // handled, but the ack is lost with the connection
+          return Promise.resolve();
+        },
       },
-    }, gateway);
+      gateway,
+    );
 
     h.client.start();
     await online(h);
@@ -182,7 +191,9 @@ describe('PushgateClient', () => {
       },
     });
     const h = await harness({
-      webSocket: failing, random: () => 0.5, backoff: { initialMs: 100, maxMs: 500, jitter: 0.5 },
+      webSocket: failing,
+      random: () => 0.5,
+      backoff: { initialMs: 100, maxMs: 500, jitter: 0.5 },
       onStatus: (s) => {
         if (s.retryInMs !== undefined) delays.push(s.retryInMs);
       },
@@ -228,18 +239,21 @@ describe('PushgateClient', () => {
     second.client.stop();
   });
 
-  test.each(['INVALID', 'NOT_FOUND', 'LIMIT', 'UNAVAILABLE'] as const)('a refusal %s rejects with its code', async (code) => {
-    const h = await harness();
-    h.client.start();
-    await online(h);
+  test.each(['INVALID', 'NOT_FOUND', 'LIMIT', 'UNAVAILABLE'] as const)(
+    'a refusal %s rejects with its code',
+    async (code) => {
+      const h = await harness();
+      h.client.start();
+      await online(h);
 
-    h.gateway.refuse(code);
-    const error = await h.client.subscribe(senderKey).catch((e: Error) => e);
+      h.gateway.refuse(code);
+      const error = await h.client.subscribe(senderKey).catch((e: Error) => e);
 
-    expect(error).toBeInstanceOf(PushgateRefusedError);
-    expect(error instanceof PushgateRefusedError && error.code).toBe(code);
-    h.client.stop();
-  });
+      expect(error).toBeInstanceOf(PushgateRefusedError);
+      expect(error instanceof PushgateRefusedError && error.code).toBe(code);
+      h.client.stop();
+    },
+  );
 
   test('a request waits for the connection, within its deadline', async () => {
     const silent = (): WebSocketLike => ({ send() {}, close() {}, listen() {} });
@@ -259,7 +273,10 @@ describe('PushgateClient', () => {
     h.client.start();
 
     const abort = new AbortController();
-    const pending = h.client.subscribe(senderKey, { signal: abort.signal }).then(() => 'subscribed', (e: Error) => e.message);
+    const pending = h.client.subscribe(senderKey, { signal: abort.signal }).then(
+      () => 'subscribed',
+      (e: Error) => e.message,
+    );
     abort.abort(new Error('user left'));
 
     expect(await pending).toBe('user left');
@@ -271,7 +288,10 @@ describe('PushgateClient', () => {
     const h = await harness({ webSocket: silent });
     h.client.start();
 
-    const pending = h.client.subscribe(senderKey).then(() => 'subscribed', (e: Error) => e);
+    const pending = h.client.subscribe(senderKey).then(
+      () => 'subscribed',
+      (e: Error) => e,
+    );
     h.client.stop();
 
     const error = await pending;

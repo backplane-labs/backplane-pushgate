@@ -61,8 +61,8 @@ configure-client: ## Install the TypeScript client's dependencies
 	cd client && npm ci
 
 .PHONY: client
-client: ## Typecheck, test and build the TypeScript client into client/dist
-	cd client && npm run -s typecheck && npm run -s test && npm run -s build
+client: ## Lint (Biome), typecheck, test and build the TypeScript client into client/dist
+	cd client && npm run -s lint && npm run -s typecheck && npm run -s test && npm run -s build
 
 .PHONY: test
 test: client ## Unit and integration tests with the race detector (NATS in-process; the TS client against the service)

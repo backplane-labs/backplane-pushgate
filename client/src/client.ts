@@ -1,15 +1,14 @@
-import { create, fromJsonString, toJsonString, type MessageInitShape } from '@bufbuild/protobuf';
+import { create, fromJsonString, type MessageInitShape, toJsonString } from '@bufbuild/protobuf';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
-
+import { PushgateRefusedError, PushgateTimeoutError, type RefusalCode } from './errors.js';
 import {
   ClientFrameSchema,
-  RefusalCode as WireRefusal,
+  type ServerFrame,
   ServerFrameSchema,
   type Notification as WireNotification,
-  type ServerFrame,
+  RefusalCode as WireRefusal,
   type Subscription as WireSubscription,
 } from './gen/pushgate/client/v1/client_pb.js';
-import { PushgateRefusedError, PushgateTimeoutError, type RefusalCode } from './errors.js';
 import { nativeWebSocket, type WebSocketFactory, type WebSocketLike } from './socket.js';
 
 /** What a device signs to answer the gateway's challenge, before the nonce. */
@@ -266,7 +265,8 @@ export class PushgateClient {
   /** Makes a subscription for a sender key (its VAPID public key, base64url). */
   async subscribe(applicationServerKey: string, options: RequestOptions = {}): Promise<Subscription> {
     const frame = await this.request(options, (requestId) => ({
-      case: 'subscribe', value: { requestId, applicationServerKey },
+      case: 'subscribe',
+      value: { requestId, applicationServerKey },
     }));
 
     if (frame.frame.case !== 'subscribed' || frame.frame.value.subscription === undefined) {
@@ -408,7 +408,10 @@ export class PushgateClient {
     }
 
     const notification: Notification = {
-      id: wire.id, subscription: wire.subscription, data: wire.data, urgency: urgency(wire.urgency),
+      id: wire.id,
+      subscription: wire.subscription,
+      data: wire.data,
+      urgency: urgency(wire.urgency),
       sentAt: wire.sentAt === undefined ? new Date(this.clock.now()) : timestampDate(wire.sentAt),
       ...(wire.topic === '' ? {} : { topic: wire.topic }),
     };
@@ -442,10 +445,7 @@ export class PushgateClient {
     this.send(connection, { case: 'ack', value: { ids: [id] } });
   }
 
-  private async request(
-    options: RequestOptions,
-    frame: (requestId: string) => FrameInit,
-  ): Promise<ServerFrame> {
+  private request(options: RequestOptions, frame: (requestId: string) => FrameInit): Promise<ServerFrame> {
     const timeoutMs = options.timeoutMs ?? this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT;
     const requestId = `r${++this.sequence}`;
 
@@ -461,9 +461,12 @@ export class PushgateClient {
         settle();
       };
 
-      cleanups.push(this.clock.setTimeout(
-        () => finish(() => reject(new PushgateTimeoutError(`no answer within ${timeoutMs} ms`))), timeoutMs,
-      ));
+      cleanups.push(
+        this.clock.setTimeout(
+          () => finish(() => reject(new PushgateTimeoutError(`no answer within ${timeoutMs} ms`))),
+          timeoutMs,
+        ),
+      );
 
       if (options.signal !== undefined) {
         const signal = options.signal;
@@ -473,7 +476,8 @@ export class PushgateClient {
           return;
         }
 
-        const onAbort = (): void => finish(() => reject(signal.reason instanceof Error ? signal.reason : new Error('aborted')));
+        const onAbort = (): void =>
+          finish(() => reject(signal.reason instanceof Error ? signal.reason : new Error('aborted')));
         signal.addEventListener('abort', onAbort, { once: true });
         cleanups.push(() => signal.removeEventListener('abort', onAbort));
       }

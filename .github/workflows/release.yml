@@ -102,6 +102,7 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           npm ci
+          npm run -s lint
           npm run -s typecheck
           npm run -s test
           npm run -s build

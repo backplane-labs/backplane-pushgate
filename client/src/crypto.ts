@@ -3,7 +3,6 @@ import type { webcrypto } from 'node:crypto';
 import { DecryptError } from './errors.js';
 
 type CryptoKey = webcrypto.CryptoKey;
-type CryptoKeyPair = webcrypto.CryptoKeyPair;
 
 // RFC 8291 (message encryption for Web Push) over RFC 8188 (aes128gcm), on WebCrypto.
 
@@ -57,7 +56,7 @@ class Keys implements ContentKeys {
 
 /** Fresh content keys for one subscription. */
 export async function generateContentKeys(): Promise<ContentKeys> {
-  const pair = (await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']));
+  const pair = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
   const publicRaw = new Uint8Array(await subtle.exportKey('raw', pair.publicKey));
   const pkcs8 = new Uint8Array(await subtle.exportKey('pkcs8', pair.privateKey));
 
@@ -67,7 +66,9 @@ export async function generateContentKeys(): Promise<ContentKeys> {
 /** Content keys from their export. */
 export async function importContentKeys(e: ExportedContentKeys): Promise<ContentKeys> {
   const pkcs8 = fromBase64url(e.privateKey);
-  const privateKey = await subtle.importKey('pkcs8', pkcs8, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const privateKey = await subtle.importKey('pkcs8', pkcs8, { name: 'ECDH', namedCurve: 'P-256' }, true, [
+    'deriveBits',
+  ]);
   const publicRaw = fromBase64url(e.p256dh);
   const authRaw = fromBase64url(e.auth);
   if (publicRaw.length !== POINT || authRaw.length !== AUTH) throw new TypeError('pushgate: not exported content keys');
@@ -77,12 +78,14 @@ export async function importContentKeys(e: ExportedContentKeys): Promise<Content
 
 /** Opens an aes128gcm message (RFC 8291: one record) with the subscription's keys. */
 export async function decrypt(keys: ContentKeys, data: Uint8Array): Promise<Uint8Array> {
-  if (!(keys instanceof Keys)) throw new TypeError('pushgate: keys must come from generateContentKeys or importContentKeys');
+  if (!(keys instanceof Keys))
+    throw new TypeError('pushgate: keys must come from generateContentKeys or importContentKeys');
   if (data.length < HEADER) throw new DecryptError('malformed', 'shorter than the aes128gcm header');
 
   const salt = data.subarray(0, SALT);
   const idLength = data[HEADER - 1] ?? 0;
-  if (idLength !== POINT || data.length < HEADER + idLength) throw new DecryptError('malformed', 'no sender key in the header');
+  if (idLength !== POINT || data.length < HEADER + idLength)
+    throw new DecryptError('malformed', 'no sender key in the header');
 
   const senderRaw = data.subarray(HEADER, HEADER + idLength);
 
@@ -95,7 +98,10 @@ export async function decrypt(keys: ContentKeys, data: Uint8Array): Promise<Uint
 
   const { key, nonce } = await contentKey(
     new Uint8Array(await subtle.deriveBits({ name: 'ECDH', public: senderKey }, keys.privateKey, 256)),
-    keys.authRaw, keys.publicRaw, senderRaw, salt,
+    keys.authRaw,
+    keys.publicRaw,
+    senderRaw,
+    salt,
   );
 
   let plain: Uint8Array;
@@ -116,13 +122,16 @@ export async function decrypt(keys: ContentKeys, data: Uint8Array): Promise<Uint
 export async function encrypt(p256dh: string, auth: string, plaintext: Uint8Array): Promise<Uint8Array> {
   const receiverRaw = fromBase64url(p256dh);
   const receiver = await subtle.importKey('raw', receiverRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-  const ephemeral = (await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']));
+  const ephemeral = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
   const senderRaw = new Uint8Array(await subtle.exportKey('raw', ephemeral.publicKey));
   const salt = globalThis.crypto.getRandomValues(new Uint8Array(SALT));
 
   const { key, nonce } = await contentKey(
     new Uint8Array(await subtle.deriveBits({ name: 'ECDH', public: receiver }, ephemeral.privateKey, 256)),
-    fromBase64url(auth), receiverRaw, senderRaw, salt,
+    fromBase64url(auth),
+    receiverRaw,
+    senderRaw,
+    salt,
   );
 
   const padded = new Uint8Array(plaintext.length + 1);
@@ -142,7 +151,11 @@ export async function encrypt(p256dh: string, auth: string, plaintext: Uint8Arra
 
 /** The record's AES-128-GCM key and nonce (RFC 8291 3.4, RFC 8188 2.2). */
 async function contentKey(
-  shared: Uint8Array, auth: Uint8Array, receiver: Uint8Array, sender: Uint8Array, salt: Uint8Array,
+  shared: Uint8Array,
+  auth: Uint8Array,
+  receiver: Uint8Array,
+  sender: Uint8Array,
+  salt: Uint8Array,
 ): Promise<{ key: CryptoKey; nonce: Uint8Array }> {
   const ikm = await hkdf(shared, auth, concat(encoder.encode('WebPush: info\0'), receiver, sender), 32);
   const cek = await hkdf(ikm, salt, encoder.encode('Content-Encoding: aes128gcm\0'), 16);

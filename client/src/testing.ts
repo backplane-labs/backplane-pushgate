@@ -1,13 +1,9 @@
-import { create, fromJsonString, toJsonString, type MessageInitShape } from '@bufbuild/protobuf';
+import { create, fromJsonString, type MessageInitShape, toJsonString } from '@bufbuild/protobuf';
 import { timestampNow } from '@bufbuild/protobuf/wkt';
 
-import { HELLO_CONTEXT, type DeviceKey } from './client.js';
+import { type DeviceKey, HELLO_CONTEXT } from './client.js';
 import { base64url, encrypt, fromBase64url } from './crypto.js';
-import {
-  ClientFrameSchema,
-  RefusalCode,
-  ServerFrameSchema,
-} from './gen/pushgate/client/v1/client_pb.js';
+import { ClientFrameSchema, RefusalCode, ServerFrameSchema } from './gen/pushgate/client/v1/client_pb.js';
 import type { SocketEvents, WebSocketFactory, WebSocketLike } from './socket.js';
 
 export { encrypt };
@@ -80,7 +76,9 @@ export class FakeGateway {
     if (sub === undefined) throw new Error(`fake gateway: no subscription ${subscription}`);
 
     const message: FakeMessage = { id: String(++this.sequence), subscription, data, ...options };
-    const box = (this.mailbox.get(sub.channel) ?? []).filter((m) => options.topic === undefined || m.topic !== options.topic);
+    const box = (this.mailbox.get(sub.channel) ?? []).filter(
+      (m) => options.topic === undefined || m.topic !== options.topic,
+    );
     this.mailbox.set(sub.channel, [...box, message]);
 
     const connection = this.live.get(sub.channel);
@@ -111,7 +109,9 @@ export class FakeGateway {
   /** Makes the next subscribe or unsubscribe fail with code. */
   refuse(code: 'INVALID' | 'NOT_FOUND' | 'LIMIT' | 'UNAVAILABLE'): void {
     this.refuseNext = {
-      INVALID: RefusalCode.INVALID, NOT_FOUND: RefusalCode.NOT_FOUND, LIMIT: RefusalCode.LIMIT,
+      INVALID: RefusalCode.INVALID,
+      NOT_FOUND: RefusalCode.NOT_FOUND,
+      LIMIT: RefusalCode.LIMIT,
       UNAVAILABLE: RefusalCode.UNSPECIFIED,
     }[code];
   }
@@ -129,7 +129,11 @@ export class FakeGateway {
         if (connection !== undefined) this.drop(connection);
       },
       listen: (events) => {
-        const opened: FakeConnection = { events, nonce: globalThis.crypto.getRandomValues(new Uint8Array(32)), closed: false };
+        const opened: FakeConnection = {
+          events,
+          nonce: globalThis.crypto.getRandomValues(new Uint8Array(32)),
+          closed: false,
+        };
         connection = opened;
         this.connection = opened;
         queueMicrotask(() => {
@@ -182,7 +186,10 @@ export class FakeGateway {
         if (this.refused(connection, requestId)) return;
 
         if (fromBase64url(applicationServerKey).length !== 65 || connection.channel === undefined) {
-          this.emit(connection, { case: 'refused', value: { requestId, code: RefusalCode.INVALID, message: 'not a P-256 key' } });
+          this.emit(connection, {
+            case: 'refused',
+            value: { requestId, code: RefusalCode.INVALID, message: 'not a P-256 key' },
+          });
 
           return;
         }
@@ -201,7 +208,10 @@ export class FakeGateway {
         if (this.refused(connection, requestId)) return;
 
         if (this.subscriptions.get(subscription)?.channel !== connection.channel) {
-          this.emit(connection, { case: 'refused', value: { requestId, code: RefusalCode.NOT_FOUND, message: 'no such subscription' } });
+          this.emit(connection, {
+            case: 'refused',
+            value: { requestId, code: RefusalCode.NOT_FOUND, message: 'no such subscription' },
+          });
 
           return;
         }
@@ -215,7 +225,11 @@ export class FakeGateway {
         const channel = connection.channel;
         for (const id of frame.value.ids) {
           this.acked.push(id);
-          if (channel !== undefined) this.mailbox.set(channel, (this.mailbox.get(channel) ?? []).filter((m) => m.id !== id));
+          if (channel !== undefined)
+            this.mailbox.set(
+              channel,
+              (this.mailbox.get(channel) ?? []).filter((m) => m.id !== id),
+            );
         }
 
         return;
@@ -239,7 +253,11 @@ export class FakeGateway {
     this.emit(connection, {
       case: 'notification',
       value: {
-        id: m.id, subscription: m.subscription, data: m.data, topic: m.topic ?? '', urgency: m.urgency ?? 'normal',
+        id: m.id,
+        subscription: m.subscription,
+        data: m.data,
+        topic: m.topic ?? '',
+        urgency: m.urgency ?? 'normal',
         sentAt: timestampNow(),
       },
     });
@@ -256,7 +274,8 @@ export class FakeGateway {
 
   private drop(connection: FakeConnection): void {
     connection.closed = true;
-    if (connection.channel !== undefined && this.live.get(connection.channel) === connection) this.live.delete(connection.channel);
+    if (connection.channel !== undefined && this.live.get(connection.channel) === connection)
+      this.live.delete(connection.channel);
     if (this.connection === connection) this.connection = undefined;
   }
 }

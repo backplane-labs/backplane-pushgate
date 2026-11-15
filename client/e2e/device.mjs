@@ -1,7 +1,7 @@
 // A desktop device on the built package, driven by tests/tsclient_test.go:
 // it subscribes with the sender key it is given, prints its address, then
 // opens, acknowledges and prints the first message. One JSON object per line.
-import { PushgateClient, decrypt, generateContentKeys } from '../dist/index.js';
+import { decrypt, generateContentKeys, PushgateClient } from '../dist/index.js';
 import { createDeviceKey } from '../dist/testing.js';
 
 const [url, senderKey] = process.argv.slice(2);
