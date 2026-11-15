@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/backplane-labs/backplane v0.6.96
+	github.com/backplane-labs/backplane v0.6.100
 	github.com/coder/websocket v1.8.14
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gopherex/schemapb/go v1.10.1
@@ -39,7 +39,7 @@ require (
 	github.com/google/cel-go v0.30.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gopherex/ws-proto v1.9.1 // indirect
+	github.com/gopherex/ws-proto v1.11.1 // indirect
 	github.com/gopherex/xconf v1.4.2 // indirect
 	github.com/gopherex/xconf/contrib/decoders/json v1.4.2 // indirect
 	github.com/gopherex/xconf/contrib/decoders/yaml v1.4.2 // indirect
