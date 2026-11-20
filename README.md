@@ -196,3 +196,14 @@ make run         # against the local backplane stack (deployments/dev.yaml)
 | `internal/pushtest` | A test client: hello, subscribe, receive, ack, RFC 8291 decryption. |
 | `tests` | The service whole on a real NATS: senders through webpush-go (what backplane-courier sends with), two replicas, a NATS node down, NATS gone, and the TypeScript client (`client/e2e/device.mjs`) against it. |
 | `client` | The TypeScript client package with its own tests (`make client`). Biome lints and formats it (`yarn lint`, `yarn fmt`): its recommended rules, the project's bans (any, non-null, default and `export *`, enums, namespaces, `==`, floating promises, console), and two GritQL plugins in `client/biome/` that reject `as` casts (except `as const`) and `unknown`. |
+
+## Metrics
+
+| Name | Type | Labels |
+|---|---|---|
+| `pushgate.sends` | counter | `outcome`: `accepted`, `dropped` (no client and TTL 0), `invalid`, `gone`, `unauthorized`, `wrong_key`, `too_large`, `failed` |
+| `pushgate.sessions` | up-down counter | — (open client sessions) |
+| `pushgate.deliveries` | counter | `outcome`: `sent`, `unsent` (resent on the next connection), `acked` |
+
+The SDK's metrics come on top (backplane `reference/metrics`): NATS lag,
+HTTP and gRPC servers, the Go runtime.
