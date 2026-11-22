@@ -15,6 +15,7 @@ import (
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/backplane-labs/backplane/pkg/backplane/backplanetest"
 	"github.com/backplane-labs/backplane/pkg/backplane/infra/nats/natstest"
+	"github.com/coder/websocket"
 
 	pushgate "github.com/backplane-labs/backplane-pushgate"
 	"github.com/backplane-labs/backplane-pushgate/internal/pushtest"
@@ -412,7 +413,22 @@ func TestChaosNATSDown(t *testing.T) {
 		return status == http.StatusCreated
 	})
 
-	if n := d.dial(t, in).Notification(t); d.open(t, n) != "back" {
+	// Right after the cluster restarts, the inbox may not open yet: the
+	// server answers 1011 and a client reconnects, as this one does.
+	var n *clientv1.Notification
+
+	waitFor(t, "a connection that delivers", func() bool {
+		f, closed := d.dial(t, in).NextOrClosed(t)
+		if f == nil && closed != websocket.StatusInternalError {
+			t.Fatalf("closed with %d, not a retry", closed)
+		}
+
+		n = f.GetNotification()
+
+		return n != nil
+	})
+
+	if d.open(t, n) != "back" {
 		t.Fatalf("delivered %v", n)
 	}
 }

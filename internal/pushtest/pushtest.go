@@ -143,18 +143,32 @@ func (c *Client) SendRaw(tb testing.TB, raw string) {
 func (c *Client) Next(tb testing.TB) *clientv1.ServerFrame {
 	tb.Helper()
 
+	f, closed := c.NextOrClosed(tb)
+	if f == nil {
+		tb.Fatalf("the connection closed with %d", closed)
+	}
+
+	return f
+}
+
+// NextOrClosed is the next frame, or nil and the close status when the
+// server closed the connection instead (1011: the service asks the client
+// to retry).
+func (c *Client) NextOrClosed(tb testing.TB) (*clientv1.ServerFrame, websocket.StatusCode) {
+	tb.Helper()
+
 	select {
 	case f, ok := <-c.frames:
 		if !ok {
-			tb.Fatal("the connection closed")
+			return nil, <-c.closed
 		}
 
-		return f
+		return f, 0
 	case <-time.After(wait):
 		tb.Fatal("no frame")
 	}
 
-	return nil
+	return nil, 0
 }
 
 // Notification is the next notification, skipping no other frame.
